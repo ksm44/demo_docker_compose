@@ -1,0 +1,70 @@
+services:
+  # ===============POSTGRES=====================
+  postgres: # 1-й контейнер — база данных PostgreSQL
+      image: postgres:18-alpine # образ, который необходимо запустить
+      restart: unless-stopped
+      env_file:
+        - .env
+      volumes:  # монтируем данные, чтобы они не пропали при удалении контейнера
+        - pgdata:/var/lib/postgresql/data # именованный том pgdata → папка с данными БД внутри контейнера
+      networks:
+        - mynetwork # сеть "backend" — общая для всех сервисов
+                    #Если тут не объявлять секцию networks - Docker автоматически создаст одну общую
+                    #сеть для всех сервисов этого compose-файла — и они увидят друг друга по именам
+      ports:
+        - "5432:5432"
+
+  # ===============BACKEND=====================
+  backend: # 2-й контейнер — наше Django-приложение
+    build:  # используем свой образ, который необходимо предварительно "сбилдить"
+      context: . # откуда брать данные для создания Docker-образа
+      dockerfile: Dockerfile		# (не обязательно, если стандартное имя Dockerfile)
+      ### ТЕПЕРЬ, чтобы сбилдить образ выполнить: docker-compose build
+    restart: unless-stopped
+    env_file:
+      - .env
+    depends_on:
+      - postgres # если запустится postgres - запустится backend
+    volumes:
+      - ./logs:/var/log
+      - static:/app/static # сюда Django сложит статику
+    command: >
+      sh -c "python manage.py migrate &&
+             python manage.py collectstatic --noinput &&
+             gunicorn demo_docker_compose.asgi:application
+             --bind 0.0.0.0:8000
+             --worker-class uvicorn.workers.UvicornWorker"
+    networks:
+      - mynetwork
+
+  # ====================NGINX=============================
+  nginx: # 3-й контейнер — веб-сервер
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf
+      - static:/app/static
+    depends_on:
+      - backend
+    networks:
+        - mynetwork
+
+#==================================================
+volumes:
+  pgdata:      # том для данных PostgreSQL
+  static:      # том для статики Django
+
+networks:
+  mynetwork:   # общая сеть для всех трёх сервисов
+
+# Перед запуском:
+  # ✅ сбилдить образ по Dockerfile: (docker build -t my_container_anything .) или запусать с флагом docker-compose up --build
+  # ✅ проверить что .env существует рядом с compose-файлом
+  # ✅ проверить что nginx.conf существует в той же папке с compose-файлом
+
+### Валидация: docker compose config
+### ТЕПЕРЬ, чтобы запустить сервис: docker-compose up
+
+### А ЧТОБЫ ПРОВЕРИТЬ в консольке: curl http://127.0.0.1/ <-- закрывающий слэш
