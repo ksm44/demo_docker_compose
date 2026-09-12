@@ -18,7 +18,7 @@ temp/
 *.tmp
 
 # === Переменные окружения и секреты ===
-.env
+demo_docker_compose/.env
 .env.*
 !.env.example
 *.pem

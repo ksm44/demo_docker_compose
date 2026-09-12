@@ -1,0 +1,13 @@
+<h1>Книги</h1>
+<form method="post">
+    {% csrf_token %}
+    <input type="text" name="title" placeholder="Название" required>
+    <input type="text" name="author" placeholder="Автор" required>
+    <button type="submit">Добавить</button>
+</form>
+
+<ul>
+    {% for b in books %}
+        <li>{{ b.title }} — {{ b.author }}</li>
+    {% endfor %}
+</ul>
